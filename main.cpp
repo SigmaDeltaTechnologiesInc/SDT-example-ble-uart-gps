@@ -32,13 +32,14 @@
 
 /* Serial */
 #define BAUDRATE 9600
-Serial g_Serial_pc(USBTX, USBRX, BAUDRATE);
+// Serial g_Serial_Pc(USBTX, USBRX, BAUDRATE);          // Not used because the number of UART channel is only 1, UART1.
+Serial g_Serial_Gps(UART1_TX, UART1_RX, BAUDRATE);      // USBTX = UART1_TX, USBRX = UART1_RX
 
 /* DigitalOut */
 #define LED_ON      0
 #define LED_OFF     1
-DigitalOut g_DO_LedRed(LED_RED, LED_OFF);
-DigitalOut g_DO_LedGreen(LED_GREEN, LED_OFF);
+DigitalOut g_DO_LedRed(LED_RED, LED_OFF);               // For SDT52832B, the GPIO0 operates as an NFC function and cannot serve as LED0
+DigitalOut g_DO_LedGreen(LED_GREEN, LED_OFF);           // For SDT52832B, the GPIO1 operates as an NFC function and cannot serve as LED1
 DigitalOut g_DO_LedBlue(LED_BLUE, LED_OFF);
 DigitalOut* g_pDO_Led = &g_DO_LedBlue;
 
@@ -59,24 +60,23 @@ UARTService* g_pUartService;
 /* Variable */
 bool g_b_BleConnect = false;
 bool g_b_UartStart = false;
-unsigned char g_puc_UartRxBuf[50] = {'\0', };       // DataBuffer to write by BLE
+unsigned char g_puc_UartRxBuf[50] = {'\0', };           // DataBuffer to write by BLE
 
 
 
 void callbackTicker(void) {
-    // g_Serial_pc.printf("LED Toggle\n");
     *g_pDO_Led = !(*g_pDO_Led);
 }
 
 void readWriteData(void) {
     if (g_b_UartStart) {
-        char data = g_Serial_pc.getc();
+        char data = g_Serial_Gps.getc();
 
         if (data == '$') {                              // GPS data is $GPxxxxxxxxxx
             unsigned char rxBufIndex = 0;
 
             while (true) {
-                data = g_Serial_pc.getc();
+                data = g_Serial_Gps.getc();
                 if (data != '$') {
                     g_puc_UartRxBuf[rxBufIndex++] = data;
                 }
@@ -84,7 +84,6 @@ void readWriteData(void) {
                     break;
                 }
             }
-            g_Serial_pc.printf("%s\n", g_puc_UartRxBuf);        // For debug
 
             if (g_pUartService) {
                 g_pUartService->write(g_puc_UartRxBuf, UARTSERVICE_WRITE_DATA_MAX); // Elements of first parameter(const void *_buffer) are copied to 'sendBuffer' in write() just as much second parameter(size_t length).
@@ -108,7 +107,7 @@ void callbackBleDataWritten(const GattWriteCallbackParams* params) {
     if ((g_pUartService != NULL) && (params->handle == g_pUartService->getTXCharacteristicHandle())) {
         // uint16_t bytesRead = params->len;
         const unsigned char* pBleRxBuf = params->data;
-        // g_Serial_pc.printf("data from BLE : %s\r\n", params->data);  // For debug
+        // g_Serial_Pc.printf("data from BLE : %s\r\n", params->data);  // For debug
 
         if (pBleRxBuf[0] == 's') {
             g_b_UartStart = true;
@@ -120,18 +119,17 @@ void callbackBleDataWritten(const GattWriteCallbackParams* params) {
 }
 
 void callbackBleConnection(const Gap::ConnectionCallbackParams_t* params) {
-    // g_Serial_pc.printf("Connected!\n");
+    // g_Serial_Pc.printf("Connected!\n");
     g_b_BleConnect = true;
-    *g_pDO_Led = LED_OFF;
-    g_pDO_Led = &g_DO_LedGreen;
+    g_Ticker.attach(callbackTicker, 1);
 }
 
 void callbackBleDisconnection(const Gap::DisconnectionCallbackParams_t* params) {
-    g_Serial_pc.printf("Disconnected!\n");
-    g_Serial_pc.printf("Restarting the advertising process\n\r");
+    // g_Serial_Pc.printf("Disconnected!\n");
+    // g_Serial_Pc.printf("Restarting the advertising process\n\r");
     g_b_BleConnect = false;
-    *g_pDO_Led = LED_OFF;
-    g_pDO_Led = &g_DO_LedBlue;
+    g_Ticker.detach();
+    *g_pDO_Led = LED_ON;
     g_pBle.gap().startAdvertising();
 }
 
@@ -140,17 +138,17 @@ void callbackBleInitComplete(BLE::InitializationCompleteCallbackContext* params)
     ble_error_t error = params->error;          // 'error' has BLE_ERROR_NONE if the initialization procedure started successfully.
 
     if (error == BLE_ERROR_NONE) {
-        // g_Serial_pc.printf("Initialization completed successfully\n");
+        // g_Serial_Pc.printf("Initialization completed successfully\n");
     }
     else {
         /* In case of error, forward the error handling to onBleInitError */
-        // g_Serial_pc.printf("Initialization failled\n");
+        // g_Serial_Pc.printf("Initialization failled\n");
         return;
     }
 
     /* Ensure that it is the default instance of BLE */
     if(ble.getInstanceID() != BLE::DEFAULT_INSTANCE) {
-        // g_Serial_pc.printf("ID of BLE instance is not DEFAULT_INSTANCE\n");
+        // g_Serial_Pc.printf("ID of BLE instance is not DEFAULT_INSTANCE\n");
         return;
     }
 
@@ -167,18 +165,18 @@ void callbackBleInitComplete(BLE::InitializationCompleteCallbackContext* params)
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::SHORTENED_LOCAL_NAME, (const uint8_t *)BLE_DEVICE_NAME, sizeof(BLE_DEVICE_NAME) - 1);
     ble.gap().accumulateAdvertisingPayload(GapAdvertisingData::COMPLETE_LIST_128BIT_SERVICE_IDS, (const uint8_t *)UARTServiceUUID_reversed, sizeof(UARTServiceUUID_reversed));
     ble.gap().startAdvertising();
-    // g_Serial_pc.printf("Start advertising\n");
+    // g_Serial_Pc.printf("Start advertising\n");
 }
 
 int main(void) {
-    // g_Serial_pc.printf("< Sigma Delta Technologies Inc. >\n\r");
+    // g_Serial_Pc.printf("< Sigma Delta Technologies Inc. >\n\r");
 
     /* Init BLE */
     g_pBle.onEventsToProcess(callbackEventsToProcess);
     g_pBle.init(callbackBleInitComplete);
 
     /* Check whether IC is running or not */
-    g_Ticker.attach(callbackTicker, 1);
+    *g_pDO_Led = LED_ON;
     
     g_EventQueue.call_every(300, callbackPeriodicEvent);
     g_EventQueue.dispatch_forever();
