@@ -1,4 +1,4 @@
-/* SDT-example-ble-uart-gps
+/* SDT-example-ble-uart-neo6m
  * 
  * Copyright (c) 2018 Sigma Delta Technologies Inc.
  * 
