@@ -1,1 +1,1 @@
-# SDT-example-ble-uart-gps
+# SDT-example-ble-uart-neo6m
