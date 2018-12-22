@@ -128,6 +128,7 @@ void callbackBleDisconnection(const Gap::DisconnectionCallbackParams_t* params) 
     // serial_Pc.printf("Disconnected!\n");
     // serial_Pc.printf("Restarting the advertising process\n\r");
     b_bleConnect = false;
+    b_uartStart = false;
     ticker.detach();
     *pDO_led = LED_ON;
     ble_SDTDevice.gap().startAdvertising();
